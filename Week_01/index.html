@@ -1,0 +1,171 @@
+<style>
+  .cell {
+    width: 100px;
+    height: 100px;
+    background-color: green;
+    display: inline-block;
+    border: solid 1px white;
+    vertical-align: middle;
+
+    line-height: 100px;
+    font-size: 50px;
+    text-align: center;
+  }
+
+</style>
+
+
+<div id="board"></div>
+
+<script>
+  const DEEP = 3;
+  let pattern = [];
+  (function() {
+    for (let i = 0; i < DEEP; i++) {
+      for (let j = 0; j < DEEP; j++) {
+        pattern.push(0);
+      }
+    }
+  })()
+
+  let color = 1;
+
+  function show() {
+    let board = document.getElementById("board");
+    board.innerHTML = "";
+    for(let i = 0; i < DEEP; i++) {
+      for(let j = 0; j < DEEP; j++) {
+        let cell = document.createElement("div");
+        cell.classList.add("cell");
+        let innerText = "";
+        switch(pattern[i * DEEP + j]) {
+          case 2:
+            innerText = "❌";
+            break;
+          case 1:
+            innerText = "⭕️";
+            break;
+          default:
+            break;
+        }
+        cell.innerText = innerText;
+        cell.addEventListener("click", () => userMove(j, i))
+        board.appendChild(cell);
+      }
+      board.appendChild(document.createElement("br"));
+    }
+  }
+
+  function userMove(x, y) {
+    if ( pattern[y * DEEP + x] !== 0) {
+      return;
+    }
+    pattern[y * DEEP + x] = color;
+    if (check(pattern, color)) {
+      alert(color == 2 ? "❌is winner" : "⭕️is winner");
+    }
+    color = 3 - color;
+    show();
+    computerMove();
+  }
+
+  function computerMove() {
+    let choice = baseChoice(pattern, color);
+    if (choice.point) {
+      pattern[choice.point[1] * DEEP + choice.point[0]] = color;
+    }
+    if (check(pattern, color)) {
+      alert(color == 2 ? "❌is winner" : "⭕️is winner");
+    }
+    color = 3 - color;
+    show();
+  }
+
+
+  function check(pattern, color) {
+    for(let i = 0; i < DEEP; i++) {
+      let xWin = true;
+      let yWin = true;
+      for(let j = 0; j < DEEP; j++) {
+        if (pattern[i * DEEP + j] !== color) {
+          xWin = false;
+        }
+        if (pattern[j * DEEP + i] !== color) {
+          yWin = false;
+        }
+      }
+      if (xWin || yWin) {
+        return true;
+      }
+    }
+    {
+      let win1 = true;
+      let win2 = true;
+      for(let j = 0; j < DEEP; j++) {
+        if (pattern[j * DEEP + DEEP - 1 - j] !== color) {
+          win1 = false
+        }
+        if (pattern[j * DEEP + j] !== color) {
+          win2 = false
+        }
+      }
+      if (win1 || win2) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function clone(data) {
+    return Object.create(data);
+  }
+
+  function willWin(pattern, color) {
+    for(let i = 0; i < DEEP; i++) {
+      for(let j = 0; j < DEEP; j++) {
+        if (!pattern[i * DEEP + j]) {
+          let tmp = clone(pattern);
+          tmp[i * DEEP + j] = color;
+          if (check(tmp, color)) {
+            return [j, i];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function baseChoice(pattern, color) {
+    let point = willWin(pattern, color);
+    if (point) {
+      return {
+        point: point,
+        result: 1
+      }
+    }
+    let result = -1;
+    outer: for(let i = 0; i < DEEP; i++) {
+      inner: for(let j = 0; j < DEEP; j++) {
+        if(pattern[i * DEEP + j] !== 0) {
+          continue;
+        }
+        let tmp = clone(pattern);
+        tmp[i * DEEP + j] = color;
+        let opp = baseChoice(tmp, 3 - color);
+        if (-opp.result >= result) {
+          result = -opp.result;
+          point = [j, i];
+        }
+        if (result === 1) {
+          break outer;
+        }
+      }
+    }
+    return {
+      point: point,
+      result: point ? result : 0
+    }
+  }
+
+  show();
+</script>
