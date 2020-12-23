@@ -1,0 +1,287 @@
+<style>
+  #container {
+    margin: 10px;
+  }
+
+  .row {
+    display: flex;
+  }
+
+  .cell {
+    width: 6px;
+    height: 6px;
+    border: 0.5px solid #fff;
+  }
+
+</style>
+
+<div>
+  <div id="container"></div>
+  <button onclick="saveData()">保存</button>
+</div>
+
+<script>
+  class Sorted {
+    constructor(data, compare) {
+      this.data = data.slice();
+      this.compare = compare || ((a, b) => a - b);
+    }
+    shift() {
+      if (!this.data.length) {
+        return;
+      }
+      let min = this.data[0];
+      let minIndex = 0;
+      for (let i = 1; i < this.data.length; i++) {
+        if (this.compare(this.data[i], min) < 0) {
+          min = this.data[i];
+          minIndex = i;
+        }
+      }
+      this.data[minIndex] = this.data[this.data.length - 1];
+      this.data.pop();
+      return min;
+    }
+    unshift(item) {
+      this.data.unshift(item);
+    }
+    push(item) {
+      this.data.push(item);
+    }
+
+    get length() {
+      return this.data.length;
+    }
+  }
+
+  class BinaryHeap {
+    constructor(data, compare) {
+      this.data = data;
+      this.compare = compare || ((a, b) => a - b);
+      this.reBuild();
+    }
+    reBuild() {
+      const length = this.data.length;
+      for(let i = 1; i < length; i++) {
+        const v = this.data[i];
+        this.insertAt(i, v);
+      }
+    }
+    shift() {
+      return this.take();
+    }
+    take() {
+      if (!this.data.length) {
+        return;
+      }
+      let min = this.data[0];
+      let i = 0;
+      while (i < this.data.length) {
+        let left = i * 2 + 1;
+        let right = i * 2 + 2;
+        if (left >= this.data.length) {
+          break;
+        }
+        if (right >= this.data.length) {
+          this.data[i] = this.data[left];
+          i = left;
+          break;
+        }
+        if (this.compare(this.data[left], this.data[right]) < 0) {
+          this.data[i] = this.data[left];
+          i = left;
+        } else {
+          this.data[i] = this.data[right];
+          i = right;
+        }
+      }
+      if (i < this.data.length - 1) {
+        this.insertAt(i, this.data.pop());
+      } else {
+        this.data.pop();
+      }
+      return min;
+    }
+    insertAt(i, v) {
+      this.data[i] = v;
+      let pIndex = Math.floor((i - 1) / 2);
+      while (i > 0 && this.compare(v, this.data[pIndex]) < 0) {
+        this.data[i] = this.data[pIndex];
+        this.data[pIndex] = v;
+        i = pIndex;
+        pIndex = Math.floor((pIndex - 1) / 2);
+      }
+    }
+    push(v) {
+      this.insertAt(this.data.length, v);
+    }
+    up(v, min) {
+      this.push(min);
+      this.data[0] = v;
+    }
+    get length() {
+      return this.data.length;
+    }
+  }
+
+  const SIZE = 100;
+  let panel = localStorage.getItem('mapData') ? JSON.parse(localStorage.getItem('mapData')) : Array(SIZE * SIZE).fill(0);
+  let mouseDown = false;
+  let clear = false;
+  let useAStar = false;
+
+  function sleep(t) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, t)
+    })
+  }
+
+  async function reset() {
+    panel = panel || localStorage.getItem('mapData') ? JSON.parse(localStorage.getItem('mapData')) : Array(SIZE * SIZE).fill(0);
+    await draw();
+  }
+
+  async function draw() {
+    document.getElementById('container').innerHTML = '';
+    for (let y = 0; y < SIZE; y++) {
+      let row = document.createElement('div');
+      row.className = 'row';
+      let list = [];
+      for (let x = 0; x < SIZE; x++) {
+        const cell = document.createElement('div');
+        cell.id = `${y}-${x}`;
+        cell.className = 'cell';
+        cell.style.backgroundColor = panel[SIZE * y + x] ? 'black' : '#bbb';
+        cell.addEventListener("mousemove", () => {
+          if (mouseDown) {
+            if (clear) {
+              cell.style.backgroundColor = '#bbb';
+              panel[SIZE * y + x] = 0;
+            } else {
+              cell.style.backgroundColor = 'black';
+              panel[SIZE * y + x] = 1;
+            }
+          }
+        })
+        row.appendChild(cell);
+      }
+      document.getElementById('container').appendChild(row);
+    }
+  }
+
+  function distance(point, end) {
+    return (point[0] - end[0]) ** 2 + (point[1] - end[1]) ** 2;
+  }
+
+  async function findPath(map, start, end) {
+    await reset();
+    // let queue = useAStar ? new Sorted([start], (a, b) => distance(a, end) - distance(b, end)) : [start];
+    let queue = useAStar ? new BinaryHeap([start], (a, b) => distance(a, end) - distance(b, end)) : [start];
+    let table = Object.create(map);
+
+    async function insert(step, pre, d) {
+      const x = pre[0] + step[0];
+      const y = pre[1] + step[1];
+      const currentIndex = SIZE * y + x;
+      const preIndex = SIZE * pre[1] + pre[0];
+      if (x < 0 || x > SIZE - 1 || y < 0 || y > SIZE - 1) {
+        return;
+      }
+      if (useAStar) {
+        if (table[currentIndex] === 1) {
+          return;
+        }
+        const currentDistance = table[preIndex].g + d;
+        if (!table[currentIndex]) {
+          document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightblue';
+          // await sleep(2);
+          queue.push([x, y]);
+          table[currentIndex] = {
+            parent: pre,
+            g: currentDistance,
+          };
+          return;
+        }
+
+        if (currentDistance < table[currentIndex].g) {
+          table[currentIndex] = {
+            parent: pre,
+            g: currentDistance,
+          };
+          queue.push([x, y], end);
+        }
+
+        // 未优化
+        // if (table[currentIndex]) {
+        //   return;
+        // }
+        // document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightblue';
+        // // await sleep(2);
+        // queue.push([x, y]);
+        // table[currentIndex] = {
+        //   parent: pre
+        // };
+      } else {
+        if (table[currentIndex]) {
+          return;
+        }
+        document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightblue';
+        // await sleep(2);
+        queue.push([x, y]);
+        table[currentIndex] = {
+          parent: pre
+        };
+      }
+      return;
+    }
+
+    table[SIZE * start[1] + start[0]] = {
+      g: 0,
+    }
+
+    while (queue.length) {
+      let [x, y] = queue.shift();
+      if (x === end[0] && y === end[1]) {
+        let path = [];
+        while (x !== start[0] || y !== start[1]) {
+          path.push(map[SIZE * y + x]);
+          [x, y] = table[SIZE * y + x].parent;
+          await sleep(20);
+          document.getElementById(`${y}-${x}`).style.backgroundColor = 'purple';
+        }
+        return path;
+      }
+      await insert([-1, 0], [x, y], 1);
+      await insert([1, 0], [x, y], 1);
+      await insert([0, -1], [x, y], 1);
+      await insert([0, 1], [x, y], 1);
+
+      // 支持斜角
+      await insert([1, 1], [x, y], 1.4);
+      await insert([1, -1], [x, y], 1.4);
+      await insert([-1, 1], [x, y], 1.4);
+      await insert([-1, -1], [x, y], 1.4);
+    }
+    return null;
+  }
+
+  function saveData() {
+    localStorage.setItem('mapData', JSON.stringify(panel));
+  }
+
+  document.addEventListener("mousedown", e => {
+    mouseDown = true;
+    clear = (e.which === 3);
+  })
+
+  document.addEventListener("mouseup", e => {
+    mouseDown = false;
+  })
+
+  document.addEventListener("contextmenu", e => {
+    e.preventDefault();
+  })
+
+  draw();
+
+</script>
