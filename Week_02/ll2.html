@@ -1,0 +1,194 @@
+<!--
+  * <Expression> ::=
+  *   <AdditiveExpression><EOF>
+  *
+  * <AdditiveExpression> ::=
+  *   <MultiplicativeExpression>
+  *   |<BracketExpression>
+  *   |<AdditiveExpression><+><MultiplicativeExpression>
+  *   |<AdditiveExpression><-><MultiplicativeExpression>
+  *   |<BracketExpression><+><AdditiveExpression>
+  *   |<BracketExpression><-><AdditiveExpression>
+  *
+  * <MultiplicativeExpression> ::=
+  *   <Number>
+  *   |<MultiplicativeExpression><*><Number>
+  *   |<MultiplicativeExpression></><Number>
+  *   |<BracketExpression><*><MultiplicativeExpression>
+  *   |<BracketExpression></><MultiplicativeExpression>
+  *
+  * <EOF> = END OF FILE
+ -->
+
+<script>
+  var regexp = /([\\(|\\)])|([0-9\.]+)|([ \t]+)|([\r\n]+)|(\*)|(\/)|(\+)|(\-)/g;
+
+  var dictionary = ['Bracket', 'Number', 'Whitespace', 'LineTerminator', '*', '/', '+', '-'];
+
+  const ADDITIVE_OPERATOR = ['+', '-'];
+  const MULTIPLICATIVE_OPERATOR = ['*', '/'];
+
+  function* tokenize(source) {
+    var result = null;
+    var lastIndex = 0;
+    while (true) {
+      lastIndex = regexp.lastIndex;
+      result = regexp.exec(source);
+      if (!result) {
+        break;
+      }
+      if (regexp.lastIndex - lastIndex > result[0].length) {
+        break;
+      }
+      let token = {
+        type: null,
+        value: null,
+      }
+      for (var i = 1; i <= dictionary.length; i++) {
+        if (result[i]) {
+          token.type = dictionary[i - 1];
+        }
+      }
+      token.value = result[0];
+      yield token;
+    }
+    yield {
+      type: "EOF"
+    }
+  }
+
+  function Expression(source) {
+    if (source[0].type === 'AdditiveExpression' && source[1] && source[1].type === 'EOF') {
+      let node = {
+        type: 'Expression',
+        children: [source.shift(), source.shift()]
+      }
+      source.unshift(node);
+      return node;
+    }
+    AdditiveExpression(source);
+    return Expression(source);
+  }
+
+  function BracketExpression(source) {
+    let count = 0;
+    let indexList = [];
+    for (let i = 0; i < source.length; i++) {
+      if (source[i].type === 'Bracket' && source[i].value === '(') {
+        count += 1;
+        if (count === 1) {
+          indexList.push([i]);
+        }
+      }
+      if (source[i].type === 'Bracket' && source[i].value === ')') {
+        count -= 1;
+        if (count === 0) {
+          indexList[indexList.length - 1].push(i);
+          count = 0;
+        }
+      }
+    }
+    if (indexList.length > 0) {
+      for (let i = indexList.length - 1; i >= 0; i--) {
+        let list = [];
+        for (let j = source.length - 1; j >= 0; j--) {
+          if (j > indexList[i][0] && j < indexList[i][1]) {
+            list.unshift(source[j]);
+          }
+        }
+        let node = {
+          type: 'BracketExpression',
+          children: AdditiveExpression(list)
+        }
+        source.splice(indexList[i][0], indexList[i][1] - indexList[i][0]);
+        source.splice(indexList[i][0], 1, node);
+      }
+    }
+    console.log(JSON.parse(JSON.stringify(source)));
+    return AdditiveExpression(source);
+  }
+
+  function AdditiveExpression(source) {
+    if (source[0].type === 'Bracket' && source[0].value === '(') {
+      return BracketExpression(source);
+    }
+    if (source[0].type === 'AdditiveExpression' && source[1] && ADDITIVE_OPERATOR.includes(source[1].type)) {
+      let node = {
+        type: 'AdditiveExpression',
+        operator: source[1].type,
+        children: [],
+      }
+      node.children.push(source.shift());
+      node.children.push(source.shift());
+      MultiplicativeExpression(source);
+      node.children.push(source.shift());
+      source.unshift(node);
+      return AdditiveExpression(source);
+    }
+    if (source[0].type === 'BracketExpression' && source[1] && ADDITIVE_OPERATOR.includes(source[1].type)) {
+      let node = {
+        type: 'AdditiveExpression',
+        operator: source[1].type,
+        children: [],
+      }
+      node.children.push(source.shift());
+      node.children.push(source.shift());
+      node.children.push(source.shift());
+      source.unshift(node);
+      return AdditiveExpression(source);
+    }
+    if (source[0].type === 'MultiplicativeExpression' || source[0].type === 'BracketExpression') {
+      let node = {
+        type: 'AdditiveExpression',
+        children: [source[0]]
+      }
+      source[0] = node;
+      return AdditiveExpression(source);
+    }
+    if (source[0].type === 'AdditiveExpression') {
+      return source[0];
+    }
+    MultiplicativeExpression(source);
+    return AdditiveExpression(source);
+  }
+
+  function MultiplicativeExpression(source) {
+    if (source[0].type === 'Number') {
+      let node = {
+        type: 'MultiplicativeExpression',
+        children: [source[0]]
+      }
+      source[0] = node;
+      return MultiplicativeExpression(source);
+    }
+    if ((source[0].type === 'MultiplicativeExpression' || source[0].type === 'BracketExpression') && source[1] &&
+      MULTIPLICATIVE_OPERATOR.includes(source[1].type)) {
+      let node = {
+        type: 'MultiplicativeExpression',
+        operator: source[1].type,
+        children: [],
+      }
+      node.children.push(source.shift());
+      node.children.push(source.shift());
+      node.children.push(source.shift());
+      source.unshift(node);
+      return MultiplicativeExpression(source);
+    }
+    if (source[0].type === 'MultiplicativeExpression') {
+      return source[0]
+    }
+
+    return MultiplicativeExpression(source);
+  }
+
+  {
+    let source = [];
+    for (let token of tokenize('(1 + 3 * 5 - 2)')) {
+      if (token.type !== 'Whitespace' && token.type !== 'LineTerminator') {
+        source.push(token);
+      }
+    }
+    console.log(Expression(source));
+  }
+
+</script>
