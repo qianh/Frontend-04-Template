@@ -32,7 +32,7 @@ function kmp(source, pattern) {
       }
     }
     if (j === pattern.length) {
-      return i - pattern.length;
+      return i - j;
     }
   }
   return -1;

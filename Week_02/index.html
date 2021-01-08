@@ -13,11 +13,21 @@
     border: 0.5px solid #fff;
   }
 
+  .points input {
+    width: 50px;
+  }
 </style>
 
 <div>
   <div id="container"></div>
-  <button onclick="saveData()">保存</button>
+  <button onclick="saveData()">保存地图</button>
+  <button onclick="useAStarFn(false)">普通寻路</button>
+  <button onclick="useAStarFn(true)">使用A*寻路</button>
+  <div class="points">
+    起点：<input type="text" id="startX" placeholder="0"/>，<input type="text" id="startY" placeholder="0"/>
+    终点：<input type="text" id="endX" placeholder="50"/>，<input type="text" id="endY" placeholder="50"/>
+    <button onclick="findTheWay()">开始寻路</button>
+  </div>
 </div>
 
 <script>
@@ -191,41 +201,41 @@
         if (table[currentIndex] === 1) {
           return;
         }
-        const currentDistance = table[preIndex].g + d;
-        if (!table[currentIndex]) {
-          document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightblue';
-          // await sleep(2);
-          queue.push([x, y]);
-          table[currentIndex] = {
-            parent: pre,
-            g: currentDistance,
-          };
-          return;
-        }
-
-        if (currentDistance < table[currentIndex].g) {
-          table[currentIndex] = {
-            parent: pre,
-            g: currentDistance,
-          };
-          queue.push([x, y], end);
-        }
-
-        // 未优化
-        // if (table[currentIndex]) {
+        // const currentDistance = table[preIndex].g + d;
+        // if (!table[currentIndex]) {
+        //   document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightgreen';
+        //   // await sleep(2);
+        //   queue.push([x, y]);
+        //   table[currentIndex] = {
+        //     parent: pre,
+        //     g: currentDistance,
+        //   };
         //   return;
         // }
-        // document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightblue';
-        // // await sleep(2);
-        // queue.push([x, y]);
-        // table[currentIndex] = {
-        //   parent: pre
-        // };
+
+        // if (currentDistance < table[currentIndex].g) {
+        //   table[currentIndex] = {
+        //     parent: pre,
+        //     g: currentDistance,
+        //   };
+        //   queue.push([x, y], end);
+        // }
+
+        // 未优化
+        if (table[currentIndex]) {
+          return;
+        }
+        document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightgreen';
+        // await sleep(2);
+        queue.push([x, y]);
+        table[currentIndex] = {
+          parent: pre
+        };
       } else {
         if (table[currentIndex]) {
           return;
         }
-        document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightblue';
+        document.getElementById(`${y}-${x}`).style.backgroundColor = 'lightgreen';
         // await sleep(2);
         queue.push([x, y]);
         table[currentIndex] = {
@@ -243,11 +253,12 @@
       let [x, y] = queue.shift();
       if (x === end[0] && y === end[1]) {
         let path = [];
+        document.getElementById(`${y}-${x}`).style.backgroundColor = 'red';
         while (x !== start[0] || y !== start[1]) {
           path.push(map[SIZE * y + x]);
           [x, y] = table[SIZE * y + x].parent;
-          await sleep(20);
-          document.getElementById(`${y}-${x}`).style.backgroundColor = 'purple';
+          await sleep(15);
+          document.getElementById(`${y}-${x}`).style.backgroundColor = '#2196f3';
         }
         return path;
       }
@@ -267,6 +278,18 @@
 
   function saveData() {
     localStorage.setItem('mapData', JSON.stringify(panel));
+  }
+
+  function findTheWay() {
+    const startX = document.getElementById('startX').value || 0;
+    const startY = document.getElementById('startY').value || 0;
+    const endX = document.getElementById('endX').value || 50;
+    const endY = document.getElementById('endY').value || 50;
+    findPath(panel, [Number(startX), Number(startY)], [Number(endX), Number(endY)])
+  }
+
+  function useAStarFn(flag) {
+    useAStar = flag;
   }
 
   document.addEventListener("mousedown", e => {
